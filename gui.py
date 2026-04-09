@@ -1,6 +1,5 @@
 import queue
 import threading
-from contextlib import redirect_stderr, redirect_stdout
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -44,37 +43,6 @@ KNOWN_SECTION_FIELDS: dict[str, set[str]] = {
     "http": {"cookie", "cookie_file", "user_agent", "referer", "headers"},
     "targets": {"urls", "urls_file"},
 }
-
-
-class QueueLogWriter:
-    def __init__(self, emit: Any) -> None:
-        self.emit = emit
-        self.buffer = ""
-        self.encoding = "utf-8"
-
-    def write(self, message: str) -> int:
-        if not message:
-            return 0
-
-        normalized = message.replace("\r\n", "\n").replace("\r", "\n")
-        self.buffer += normalized
-
-        while "\n" in self.buffer:
-            line, self.buffer = self.buffer.split("\n", 1)
-            self.emit(line)
-
-        return len(message)
-
-    def flush(self) -> None:
-        if self.buffer:
-            self.emit(self.buffer)
-            self.buffer = ""
-
-    def isatty(self) -> bool:
-        return False
-
-    def writable(self) -> bool:
-        return True
 
 
 class DownloaderGUI(tk.Tk):
@@ -775,15 +743,12 @@ class DownloaderGUI(tk.Tk):
         self.download_thread.start()
 
     def _download_worker(self, settings: dict[str, Any], config_dir: Path) -> None:
-        writer = QueueLogWriter(self._enqueue_log)
         exit_code = 1
         try:
-            with redirect_stdout(writer), redirect_stderr(writer):
-                exit_code = run_download(settings, config_dir, log=self._enqueue_log)
+            exit_code = run_download(settings, config_dir, log=self._enqueue_log)
         except Exception as error:  # noqa: BLE001
             self._enqueue_log(f"[Ошибка] {error}")
         finally:
-            writer.flush()
             self.event_queue.put(("done", exit_code))
 
     def _enqueue_log(self, message: str) -> None:

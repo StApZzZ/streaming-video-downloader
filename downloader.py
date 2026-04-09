@@ -53,6 +53,23 @@ TOML_BARE_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 LogCallback = Callable[[str], None]
 
 
+class YDLLogProxy:
+    def __init__(self, log: LogCallback) -> None:
+        self.log = log
+
+    def debug(self, message: str) -> None:
+        self.log(str(message))
+
+    def info(self, message: str) -> None:
+        self.log(str(message))
+
+    def warning(self, message: str) -> None:
+        self.log(f"WARNING: {message}")
+
+    def error(self, message: str) -> None:
+        self.log(f"ERROR: {message}")
+
+
 def ensure_supported_python() -> None:
     if sys.version_info >= MIN_PYTHON_VERSION:
         return
@@ -400,8 +417,12 @@ def download_urls(
 ) -> int:
     success_count = 0
     failed_urls: list[tuple[str, str]] = []
+    effective_opts = dict(ydl_opts)
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    if log is not None:
+        effective_opts["logger"] = YDLLogProxy(log)
+
+    with yt_dlp.YoutubeDL(effective_opts) as ydl:
         for index, url in enumerate(urls, start=1):
             emit_log("", log)
             emit_log(f"[{index}/{len(urls)}] Скачивание: {url}", log)

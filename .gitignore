@@ -144,6 +144,13 @@ ENV/
 env.bak/
 venv.bak/
 
+# Local app configuration
+settings.toml
+urls.txt
+cookies.txt
+cookies.cookies
+downloaded.txt
+
 # Spyder project settings
 .spyderproject
 .spyproject

@@ -1,0 +1,7 @@
+# Netscape HTTP Cookie File
+# Это пример шаблона. Подставьте реальные значения из экспортированного cookie-файла.
+# Формат строки:
+# domain<TAB>include_subdomains<TAB>path<TAB>secure<TAB>expires<TAB>name<TAB>value
+
+.example.com	TRUE	/	TRUE	2147483647	sessionid	your-session-cookie-here
+.example.com	TRUE	/	FALSE	2147483647	auth_token	your-auth-token-here

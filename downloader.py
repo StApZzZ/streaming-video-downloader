@@ -1,9 +1,9 @@
-from __future__ import annotations
-
 import argparse
+import re
 import sys
+from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import yt_dlp
 
@@ -14,25 +14,196 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 DEFAULT_CONFIG_NAME = "settings.toml"
+EXAMPLE_CONFIG_NAME = "settings.example.toml"
+MIN_PYTHON_VERSION = (3, 10)
+DEFAULT_SETTINGS: dict[str, Any] = {
+    "general": {
+        "output_dir": "downloads",
+        "continue_on_error": True,
+        "archive_file": "downloaded.txt",
+    },
+    "download": {
+        "format": "bestvideo*+bestaudio/best",
+        "merge_output_format": "mp4",
+        "filename_template": "%(title)s [%(id)s].%(ext)s",
+        "retries": 30,
+        "fragment_retries": 30,
+        "extractor_retries": 3,
+        "fragment_retry_sleep_sec": 5,
+        "socket_timeout_sec": 30,
+        "concurrent_fragment_downloads": 1,
+        "noplaylist": True,
+        "quiet": False,
+        "write_thumbnail": False,
+        "write_info_json": False,
+    },
+    "http": {
+        "cookie": "",
+        "cookie_file": "",
+        "user_agent": "",
+        "referer": "",
+        "headers": {},
+    },
+    "targets": {
+        "urls": [],
+        "urls_file": "",
+    },
+}
+TOML_BARE_KEY_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+LogCallback = Callable[[str], None]
+
+
+def ensure_supported_python() -> None:
+    if sys.version_info >= MIN_PYTHON_VERSION:
+        return
+
+    required = ".".join(str(part) for part in MIN_PYTHON_VERSION)
+    current = ".".join(str(part) for part in sys.version_info[:3])
+    raise RuntimeError(
+        f"Требуется Python {required}+; сейчас используется Python {current}.",
+    )
+
+
+def get_app_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def get_default_config_path() -> Path:
+    return get_app_dir() / DEFAULT_CONFIG_NAME
+
+
+def get_example_config_path() -> Path:
+    return get_app_dir() / EXAMPLE_CONFIG_NAME
+
+
+def make_default_settings() -> dict[str, Any]:
+    return deepcopy(DEFAULT_SETTINGS)
+
+
+def merge_nested_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = deepcopy(base)
+    for key, value in override.items():
+        current = merged.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            merged[key] = merge_nested_dicts(current, value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
+
+
+def get_settings_with_defaults(settings: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(settings, dict):
+        raise TypeError("Корень settings.toml должен быть TOML-таблицей.")
+    return merge_nested_dicts(make_default_settings(), settings)
+
+
+def format_toml_key(key: Any) -> str:
+    key_text = str(key)
+    if TOML_BARE_KEY_RE.fullmatch(key_text):
+        return key_text
+    return format_toml_string(key_text)
+
+
+def format_toml_string(value: str) -> str:
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\b", "\\b")
+        .replace("\t", "\\t")
+        .replace("\n", "\\n")
+        .replace("\f", "\\f")
+        .replace("\r", "\\r")
+    )
+    return f'"{escaped}"'
+
+
+def format_toml_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if value != value or value in {float("inf"), float("-inf")}:
+            raise TypeError("TOML не поддерживает NaN и Infinity.")
+        return str(value)
+    if isinstance(value, Path):
+        return format_toml_string(str(value))
+    if isinstance(value, str):
+        return format_toml_string(value)
+    if isinstance(value, list):
+        return f"[{', '.join(format_toml_value(item) for item in value)}]"
+    raise TypeError(f"Неподдерживаемый тип для TOML: {type(value)!r}")
+
+
+def serialize_toml_table(
+    lines: list[str],
+    table: dict[str, Any],
+    path: tuple[str, ...] = (),
+) -> None:
+    if path:
+        if lines:
+            lines.append("")
+        section = ".".join(format_toml_key(part) for part in path)
+        lines.append(f"[{section}]")
+
+    plain_items: list[tuple[str, Any]] = []
+    nested_tables: list[tuple[str, dict[str, Any]]] = []
+
+    for key, value in table.items():
+        if isinstance(value, dict):
+            nested_tables.append((str(key), value))
+        else:
+            plain_items.append((str(key), value))
+
+    for key, value in plain_items:
+        lines.append(f"{format_toml_key(key)} = {format_toml_value(value)}")
+
+    for key, value in nested_tables:
+        serialize_toml_table(lines, value, (*path, key))
+
+
+def serialize_settings(settings: dict[str, Any]) -> str:
+    normalized = get_settings_with_defaults(settings)
+    lines: list[str] = []
+    serialize_toml_table(lines, normalized)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def save_settings(config_path: Path, settings: dict[str, Any]) -> None:
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(serialize_settings(settings), encoding="utf-8")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    default_config = Path(__file__).resolve().with_name(DEFAULT_CONFIG_NAME)
     parser = argparse.ArgumentParser(
         description="Универсальный загрузчик видео из потока через yt-dlp.",
     )
     parser.add_argument(
         "-c",
         "--config",
-        default=str(default_config),
-        help="Путь до TOML-конфига. По умолчанию используется settings.toml рядом со скриптом.",
+        default=str(get_default_config_path()),
+        help=(
+            "Путь до TOML-конфига. По умолчанию используется settings.toml рядом со "
+            "скриптом или exe. Если файла нет, создайте его из settings.example.toml."
+        ),
     )
     return parser.parse_args(argv)
 
 
 def load_settings(config_path: Path) -> dict[str, Any]:
     if not config_path.exists():
-        raise FileNotFoundError(f"Файл настроек не найден: {config_path}")
+        message = f"Файл настроек не найден: {config_path}"
+        sibling_example = config_path.with_name(EXAMPLE_CONFIG_NAME)
+        default_example = get_example_config_path()
+
+        if sibling_example.exists():
+            message += f". Создайте {config_path.name} на основе {sibling_example.name}."
+        elif default_example.exists():
+            message += f". Создайте {config_path.name} на основе {default_example.name}."
+
+        raise FileNotFoundError(message)
 
     with config_path.open("rb") as file:
         data = tomllib.load(file)
@@ -214,13 +385,26 @@ def build_ydl_options(
     return ydl_opts, output_dir, get_bool(general, "continue_on_error", True)
 
 
-def download_urls(urls: list[str], ydl_opts: dict[str, Any], continue_on_error: bool) -> int:
+def emit_log(message: str, log: LogCallback | None = None) -> None:
+    if log is None:
+        print(message)
+        return
+    log(message)
+
+
+def download_urls(
+    urls: list[str],
+    ydl_opts: dict[str, Any],
+    continue_on_error: bool,
+    log: LogCallback | None = None,
+) -> int:
     success_count = 0
     failed_urls: list[tuple[str, str]] = []
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         for index, url in enumerate(urls, start=1):
-            print(f"\n[{index}/{len(urls)}] Скачивание: {url}")
+            emit_log("", log)
+            emit_log(f"[{index}/{len(urls)}] Скачивание: {url}", log)
             try:
                 exit_code = ydl.download([url])
                 if exit_code not in (0, None):
@@ -228,43 +412,54 @@ def download_urls(urls: list[str], ydl_opts: dict[str, Any], continue_on_error: 
                 success_count += 1
             except Exception as error:  # noqa: BLE001
                 failed_urls.append((url, str(error)))
-                print(f"[Ошибка] {error}")
+                emit_log(f"[Ошибка] {error}", log)
                 if not continue_on_error:
                     break
 
-    print("\n--- Итог ---")
-    print(f"Успешно: {success_count}")
-    print(f"С ошибкой: {len(failed_urls)}")
+    emit_log("", log)
+    emit_log("--- Итог ---", log)
+    emit_log(f"Успешно: {success_count}", log)
+    emit_log(f"С ошибкой: {len(failed_urls)}", log)
 
     if failed_urls:
-        print("Проблемные ссылки:")
+        emit_log("Проблемные ссылки:", log)
         for url, reason in failed_urls:
-            print(f"- {url}")
-            print(f"  причина: {reason}")
+            emit_log(f"- {url}", log)
+            emit_log(f"  причина: {reason}", log)
 
     return 0 if not failed_urls else 1
 
 
+def run_download(
+    settings: dict[str, Any],
+    config_dir: Path,
+    log: LogCallback | None = None,
+) -> int:
+    urls = collect_urls(settings, config_dir)
+    if not urls:
+        raise ValueError("Список ссылок пуст. Заполните [targets].urls или targets.urls_file.")
+
+    ydl_opts, output_dir, continue_on_error = build_ydl_options(settings, config_dir)
+
+    emit_log(f"[Настройки] Папка выгрузки: {output_dir}", log)
+    emit_log(f"[Настройки] Ссылок в очереди: {len(urls)}", log)
+
+    return download_urls(urls, ydl_opts, continue_on_error, log=log)
+
+
+def run_from_config(config_path: Path, log: LogCallback | None = None) -> int:
+    settings = load_settings(config_path)
+    emit_log(f"[Настройки] Конфиг: {config_path}", log)
+    return run_download(settings, config_path.parent, log=log)
+
+
 def main(argv: list[str] | None = None) -> int:
+    ensure_supported_python()
     args = parse_args(argv)
     config_path = Path(args.config).expanduser().resolve()
 
     try:
-        settings = load_settings(config_path)
-        urls = collect_urls(settings, config_path.parent)
-        if not urls:
-            raise ValueError("Список ссылок пуст. Заполните [targets].urls или targets.urls_file.")
-
-        ydl_opts, output_dir, continue_on_error = build_ydl_options(
-            settings,
-            config_path.parent,
-        )
-
-        print(f"[Настройки] Конфиг: {config_path}")
-        print(f"[Настройки] Папка выгрузки: {output_dir}")
-        print(f"[Настройки] Ссылок в очереди: {len(urls)}")
-
-        return download_urls(urls, ydl_opts, continue_on_error)
+        return run_from_config(config_path)
     except Exception as error:  # noqa: BLE001
         print(f"[Ошибка] {error}")
         return 1

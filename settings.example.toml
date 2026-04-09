@@ -2,6 +2,7 @@
 output_dir = "downloads"
 continue_on_error = true
 archive_file = "downloaded.txt"
+# archive_file обычно создается автоматически самим yt-dlp
 
 [download]
 format = "bestvideo*+bestaudio/best"
@@ -20,6 +21,8 @@ write_info_json = false
 
 [http]
 cookie = ""
+# Вместо строки cookie можно использовать Netscape cookie file:
+# cookie_file = "cookies.example.txt"
 cookie_file = ""
 user_agent = ""
 referer = ""
@@ -31,5 +34,7 @@ referer = ""
 [targets]
 # Можно перечислить ссылки здесь:
 # urls = ["https://site.tld/video/1", "https://site.tld/video/2"]
+# Или вынести их в отдельный файл:
+# urls_file = "urls.example.txt"
 urls = []
 urls_file = ""

@@ -1,0 +1,6 @@
+# Пример файла со ссылками для пакетной загрузки
+# Пустые строки и строки, начинающиеся с #, игнорируются
+
+https://example.com/video/1
+https://example.com/video/2
+https://example.com/stream/master.m3u8

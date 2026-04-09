@@ -1,0 +1,35 @@
+[general]
+output_dir = "downloads"
+continue_on_error = true
+archive_file = "downloaded.txt"
+
+[download]
+format = "bestvideo*+bestaudio/best"
+merge_output_format = "mp4"
+filename_template = "%(title)s [%(id)s].%(ext)s"
+retries = 30
+fragment_retries = 30
+extractor_retries = 3
+fragment_retry_sleep_sec = 5
+socket_timeout_sec = 30
+concurrent_fragment_downloads = 1
+noplaylist = true
+quiet = false
+write_thumbnail = false
+write_info_json = false
+
+[http]
+cookie = ""
+cookie_file = ""
+user_agent = ""
+referer = ""
+
+[http.headers]
+# Authorization = "Bearer your-token"
+# X-Requested-With = "XMLHttpRequest"
+
+[targets]
+# Можно перечислить ссылки здесь:
+# urls = ["https://site.tld/video/1", "https://site.tld/video/2"]
+urls = []
+urls_file = ""

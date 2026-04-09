@@ -6,6 +6,10 @@
 - прямые ссылки на `m3u8` и `mpd`;
 - защищенные страницы, если передать нужные заголовки, куки или `cookie_file`.
 
+Предварительно работает на (список будет пополняться):
+https://boosty.to/
+https://www.youtube.com/
+
 Шаблон настроек хранится в `settings.example.toml`, а локальная рабочая копия - в `settings.toml`. Для остальных полезных файлов тоже есть шаблоны: `urls.example.txt` и `cookies.example.txt`.
 
 ## GUI
@@ -30,8 +34,6 @@ python gui.py
 
 Локальные рабочие копии вроде `settings.toml`, `urls.txt`, `cookies.txt`, `cookies.cookies` и `downloaded.txt` добавлены в `.gitignore`, чтобы их не залить случайно.
 
-Предварительно работает на (список будет пополняться):
-https://boosty.to/
 
 ## Возможности
 

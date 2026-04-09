@@ -30,6 +30,9 @@ python gui.py
 
 Локальные рабочие копии вроде `settings.toml`, `urls.txt`, `cookies.txt`, `cookies.cookies` и `downloaded.txt` добавлены в `.gitignore`, чтобы их не залить случайно.
 
+Предварительно работает на (список будет пополняться):
+https://boosty.to/
+
 ## Возможности
 
 - пакетная загрузка нескольких видео;

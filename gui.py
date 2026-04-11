@@ -44,6 +44,35 @@ KNOWN_SECTION_FIELDS: dict[str, set[str]] = {
     "targets": {"urls", "urls_file"},
 }
 
+APP_COLORS = {
+    "app_bg": "#ecf2f7",
+    "surface": "#f7fbff",
+    "input_bg": "#ffffff",
+    "border": "#c9d6e3",
+    "accent": "#0f766e",
+    "accent_hover": "#115e59",
+    "text": "#183247",
+    "muted": "#6c8193",
+    "tab": "#dce7f1",
+    "tab_hover": "#e8f0f7",
+    "selection": "#d7ebe7",
+}
+
+UI_FONT = ("Segoe UI", 10)
+UI_FONT_BOLD = ("Segoe UI Semibold", 10)
+UI_FONT_TITLE = ("Segoe UI Semibold", 11)
+UI_MONO_FONT = ("Consolas", 10)
+
+URLS_PLACEHOLDER = "\n".join(
+    [
+        "# Примеры ввода:",
+        "https://example.com/video/1",
+        "https://example.com/video/2",
+        "# комментарий к пачке ссылок",
+        "https://example.com/stream/master.m3u8",
+    ]
+)
+
 
 class DownloaderGUI(tk.Tk):
     def __init__(self) -> None:
@@ -52,6 +81,7 @@ class DownloaderGUI(tk.Tk):
         self.title("Universal Stream Video Downloader GUI")
         self.geometry("1120x860")
         self.minsize(980, 720)
+        self.configure(bg=APP_COLORS["app_bg"])
 
         self.default_settings = make_default_settings()
         self.extra_settings: dict[str, Any] = {}
@@ -60,6 +90,9 @@ class DownloaderGUI(tk.Tk):
         self.is_running = False
         self.is_closed = False
         self.config_buttons: list[ttk.Button] = []
+        self.text_placeholders: dict[tk.Text, str] = {}
+        self.placeholder_widgets: set[tk.Text] = set()
+        self.text_containers: dict[tk.Text, tk.Frame] = {}
 
         self.config_path_var = tk.StringVar(value=str(get_default_config_path()))
         self.output_dir_var = tk.StringVar()
@@ -86,11 +119,133 @@ class DownloaderGUI(tk.Tk):
         self.urls_file_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Готово к работе.")
 
+        self._configure_styles()
         self._build_layout()
         self._load_initial_settings()
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(100, self._process_events)
+
+    def _configure_styles(self) -> None:
+        self.option_add("*tearOff", False)
+
+        style = ttk.Style(self)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+
+        style.configure(".", font=UI_FONT)
+        style.configure("TFrame", background=APP_COLORS["app_bg"])
+        style.configure("TLabel", background=APP_COLORS["app_bg"], foreground=APP_COLORS["text"])
+        style.configure(
+            "Muted.TLabel",
+            background=APP_COLORS["app_bg"],
+            foreground=APP_COLORS["muted"],
+        )
+        style.configure(
+            "Status.TLabel",
+            background=APP_COLORS["app_bg"],
+            foreground=APP_COLORS["muted"],
+            font=UI_FONT_BOLD,
+        )
+        style.configure(
+            "TLabelFrame",
+            background=APP_COLORS["app_bg"],
+            borderwidth=1,
+            relief="solid",
+        )
+        style.configure(
+            "TLabelFrame.Label",
+            background=APP_COLORS["app_bg"],
+            foreground=APP_COLORS["text"],
+            font=UI_FONT_TITLE,
+        )
+        style.configure(
+            "TEntry",
+            fieldbackground=APP_COLORS["input_bg"],
+            foreground=APP_COLORS["text"],
+            borderwidth=1,
+            relief="solid",
+            padding=7,
+        )
+        style.map(
+            "TEntry",
+            fieldbackground=[("disabled", "#f1f5f9")],
+            foreground=[("disabled", APP_COLORS["muted"])],
+        )
+        style.configure(
+            "TButton",
+            background=APP_COLORS["surface"],
+            foreground=APP_COLORS["text"],
+            borderwidth=0,
+            padding=(12, 8),
+            font=UI_FONT_BOLD,
+        )
+        style.map(
+            "TButton",
+            background=[
+                ("active", APP_COLORS["tab_hover"]),
+                ("disabled", "#dde6ee"),
+            ],
+            foreground=[("disabled", APP_COLORS["muted"])],
+        )
+        style.configure(
+            "Accent.TButton",
+            background=APP_COLORS["accent"],
+            foreground="#ffffff",
+            borderwidth=0,
+            padding=(16, 9),
+            font=UI_FONT_BOLD,
+        )
+        style.map(
+            "Accent.TButton",
+            background=[
+                ("active", APP_COLORS["accent_hover"]),
+                ("disabled", "#8db3ae"),
+            ],
+            foreground=[("disabled", "#f3f7f6")],
+        )
+        style.configure(
+            "TNotebook",
+            background=APP_COLORS["app_bg"],
+            borderwidth=0,
+            tabmargins=(0, 0, 0, 0),
+        )
+        style.configure(
+            "TNotebook.Tab",
+            background=APP_COLORS["tab"],
+            foreground=APP_COLORS["muted"],
+            padding=(18, 10),
+            font=UI_FONT_BOLD,
+            borderwidth=0,
+        )
+        style.map(
+            "TNotebook.Tab",
+            background=[
+                ("selected", APP_COLORS["surface"]),
+                ("active", APP_COLORS["tab_hover"]),
+            ],
+            foreground=[
+                ("selected", APP_COLORS["text"]),
+                ("active", APP_COLORS["text"]),
+            ],
+        )
+        style.configure(
+            "TCheckbutton",
+            background=APP_COLORS["app_bg"],
+            foreground=APP_COLORS["text"],
+        )
+        style.map(
+            "TCheckbutton",
+            background=[("active", APP_COLORS["app_bg"])],
+            foreground=[("disabled", APP_COLORS["muted"])],
+        )
+        style.configure(
+            "Vertical.TScrollbar",
+            background=APP_COLORS["surface"],
+            troughcolor=APP_COLORS["surface"],
+            borderwidth=0,
+            arrowcolor=APP_COLORS["muted"],
+        )
 
     def _build_layout(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -318,9 +473,28 @@ class DownloaderGUI(tk.Tk):
         )
         urls_frame.grid(row=0, column=0, sticky="nsew")
         urls_frame.columnconfigure(0, weight=1)
-        urls_frame.rowconfigure(0, weight=1)
+        urls_frame.rowconfigure(1, weight=1)
+
+        toolbar = ttk.Frame(urls_frame)
+        toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        toolbar.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            toolbar,
+            text="Можно вставить одну ссылку или целый список. Каждая строка будет обработана отдельно.",
+            style="Muted.TLabel",
+        ).grid(row=0, column=0, sticky="w")
+
+        self.paste_urls_button = ttk.Button(
+            toolbar,
+            text="Вставить из буфера",
+            command=self._paste_urls_from_clipboard,
+        )
+        self.paste_urls_button.grid(row=0, column=1, sticky="e", padx=(12, 0))
+
         urls_box, self.urls_text = self._create_text_box(urls_frame, height=14)
-        urls_box.grid(row=0, column=0, sticky="nsew")
+        urls_box.grid(row=1, column=0, sticky="nsew")
+        self._register_text_placeholder(self.urls_text, URLS_PLACEHOLDER)
 
         file_frame = ttk.Frame(self.targets_tab)
         file_frame.grid(row=1, column=0, sticky="ew", pady=(12, 0))
@@ -344,13 +518,22 @@ class DownloaderGUI(tk.Tk):
         frame.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 8))
         frame.columnconfigure(2, weight=1)
 
-        self.start_button = ttk.Button(frame, text="Запустить скачивание", command=self._start_download)
+        self.start_button = ttk.Button(
+            frame,
+            text="Запустить скачивание",
+            command=self._start_download,
+            style="Accent.TButton",
+        )
         self.start_button.grid(row=0, column=0, sticky="w", padx=(0, 8))
 
         self.clear_log_button = ttk.Button(frame, text="Очистить лог", command=self._clear_log)
         self.clear_log_button.grid(row=0, column=1, sticky="w")
 
-        ttk.Label(frame, textvariable=self.status_var).grid(row=0, column=2, sticky="e")
+        ttk.Label(frame, textvariable=self.status_var, style="Status.TLabel").grid(
+            row=0,
+            column=2,
+            sticky="e",
+        )
 
     def _build_log_panel(self) -> None:
         frame = ttk.LabelFrame(self, text="Лог", padding=12)
@@ -362,18 +545,113 @@ class DownloaderGUI(tk.Tk):
         log_box.grid(row=0, column=0, sticky="nsew")
         self.log_text.configure(state="disabled")
 
-    def _create_text_box(self, parent: ttk.Frame, height: int) -> tuple[ttk.Frame, tk.Text]:
-        frame = ttk.Frame(parent)
+    def _create_text_box(self, parent: ttk.Frame, height: int) -> tuple[tk.Frame, tk.Text]:
+        frame = tk.Frame(parent, bg=APP_COLORS["border"], bd=0, highlightthickness=0)
         frame.grid_columnconfigure(0, weight=1)
         frame.grid_rowconfigure(0, weight=1)
 
-        text = tk.Text(frame, height=height, wrap="word", font=("Consolas", 10))
+        text = tk.Text(
+            frame,
+            height=height,
+            wrap="word",
+            font=UI_MONO_FONT,
+            bg=APP_COLORS["input_bg"],
+            fg=APP_COLORS["text"],
+            insertbackground=APP_COLORS["text"],
+            relief="flat",
+            bd=0,
+            padx=12,
+            pady=10,
+            spacing1=2,
+            spacing3=2,
+            undo=True,
+            selectbackground=APP_COLORS["selection"],
+            selectforeground=APP_COLORS["text"],
+            highlightthickness=0,
+        )
         scrollbar = ttk.Scrollbar(frame, orient="vertical", command=text.yview)
         text.configure(yscrollcommand=scrollbar.set)
 
-        text.grid(row=0, column=0, sticky="nsew")
-        scrollbar.grid(row=0, column=1, sticky="ns")
+        text.grid(row=0, column=0, sticky="nsew", padx=(1, 0), pady=1)
+        scrollbar.grid(row=0, column=1, sticky="ns", padx=(0, 1), pady=1)
+        self.text_containers[text] = frame
+        text.bind(
+            "<FocusIn>",
+            lambda _event, widget=text: self._highlight_text_box(widget, True),
+            add="+",
+        )
+        text.bind(
+            "<FocusOut>",
+            lambda _event, widget=text: self._highlight_text_box(widget, False),
+            add="+",
+        )
         return frame, text
+
+    def _highlight_text_box(self, widget: tk.Text, is_focused: bool) -> None:
+        container = self.text_containers.get(widget)
+        if container is None:
+            return
+        container.configure(bg=APP_COLORS["accent"] if is_focused else APP_COLORS["border"])
+
+    def _register_text_placeholder(self, widget: tk.Text, placeholder: str) -> None:
+        self.text_placeholders[widget] = placeholder
+        widget.bind("<FocusIn>", lambda _event, target=widget: self._clear_placeholder(target), add="+")
+        widget.bind("<FocusOut>", lambda _event, target=widget: self._restore_placeholder(target), add="+")
+        self._restore_placeholder(widget)
+
+    def _show_placeholder(self, widget: tk.Text) -> None:
+        placeholder = self.text_placeholders.get(widget)
+        if not placeholder:
+            return
+        widget.delete("1.0", tk.END)
+        widget.insert("1.0", placeholder)
+        widget.configure(fg=APP_COLORS["muted"])
+        self.placeholder_widgets.add(widget)
+
+    def _clear_placeholder(self, widget: tk.Text) -> None:
+        if widget not in self.placeholder_widgets:
+            return
+        widget.delete("1.0", tk.END)
+        widget.configure(fg=APP_COLORS["text"])
+        self.placeholder_widgets.discard(widget)
+
+    def _restore_placeholder(self, widget: tk.Text) -> None:
+        if widget in self.placeholder_widgets:
+            widget.configure(fg=APP_COLORS["muted"])
+            return
+        if widget.get("1.0", tk.END).strip():
+            widget.configure(fg=APP_COLORS["text"])
+            self.placeholder_widgets.discard(widget)
+            return
+        self._show_placeholder(widget)
+
+    def _paste_urls_from_clipboard(self) -> None:
+        try:
+            clipboard_text = self.clipboard_get()
+        except tk.TclError:
+            messagebox.showwarning(
+                "Буфер обмена недоступен",
+                "Не удалось прочитать текст из системного буфера обмена.",
+            )
+            return
+
+        prepared = clipboard_text.replace("\r\n", "\n").replace("\r", "\n").strip()
+        if not prepared:
+            messagebox.showinfo(
+                "Буфер обмена пуст",
+                "В буфере обмена нет текста со ссылками для вставки.",
+            )
+            return
+
+        current = self._get_text(self.urls_text)
+        combined = f"{current}\n{prepared}" if current else prepared
+        self._set_text(self.urls_text, combined)
+        self.urls_text.focus_set()
+        self.urls_text.mark_set(tk.INSERT, tk.END)
+        self.urls_text.see(tk.END)
+
+        inserted_lines = len([line for line in prepared.splitlines() if line.strip()])
+        self.status_var.set(f"Из буфера вставлено строк: {inserted_lines}.")
 
     def _add_entry_row(
         self,
@@ -600,10 +878,21 @@ class DownloaderGUI(tk.Tk):
         return "\n".join(str(url).strip() for url in urls if str(url).strip())
 
     def _set_text(self, widget: tk.Text, value: str) -> None:
+        prepared = value.strip()
         widget.delete("1.0", tk.END)
-        widget.insert("1.0", value)
+        if prepared:
+            widget.insert("1.0", value)
+            widget.configure(fg=APP_COLORS["text"])
+            self.placeholder_widgets.discard(widget)
+            return
+        if widget in self.text_placeholders:
+            self._show_placeholder(widget)
+            return
+        widget.configure(fg=APP_COLORS["text"])
 
     def _get_text(self, widget: tk.Text) -> str:
+        if widget in self.placeholder_widgets:
+            return ""
         return widget.get("1.0", tk.END).strip()
 
     def _parse_int(self, raw_value: str, label: str, default: int) -> int:

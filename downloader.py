@@ -451,6 +451,35 @@ def download_urls(
     return 0 if not failed_urls else 1
 
 
+def collect_downloaded_paths(info: dict[str, Any] | None) -> list[Path]:
+    if not info:
+        return []
+
+    paths: list[Path] = []
+    for entry in info.get("entries") or []:
+        paths.extend(collect_downloaded_paths(entry))
+    for item in info.get("requested_downloads") or []:
+        filepath = item.get("filepath")
+        if filepath and Path(filepath).is_file():
+            paths.append(Path(filepath))
+    return paths
+
+
+def download_url_files(
+    url: str,
+    ydl_opts: dict[str, Any],
+    log: LogCallback | None = None,
+) -> list[Path]:
+    """Скачивает одну ссылку и возвращает пути к получившимся файлам."""
+    effective_opts = dict(ydl_opts)
+    if log is not None:
+        effective_opts["logger"] = YDLLogProxy(log)
+
+    with yt_dlp.YoutubeDL(effective_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+    return collect_downloaded_paths(info)
+
+
 def run_download(
     settings: dict[str, Any],
     config_dir: Path,

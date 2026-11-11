@@ -339,3 +339,19 @@ pyinstaller --noconfirm --clean --onefile --name stream-video-downloader downloa
 - Повторяющиеся ссылки автоматически убираются.
 - Уже скачанные элементы пропускаются через `downloaded.txt`.
 - Если конкретный сайт не поддерживается `yt-dlp`, скрипт тоже не сможет его скачать без дополнительной доработки.
+
+## Telegram-бот
+
+`bot.py` — бот поверх тех же функций `downloader.py`: присылаете ссылку, он скачивает видео через yt-dlp и отправляет файл в чат.
+
+```bash
+cp .env.example .env            # BOT_TOKEN, ALLOWED_USER_IDS
+pip install -r requirements-bot.txt
+set -a; . ./.env; set +a
+python bot.py
+```
+
+- Пользоваться ботом могут только id из `ALLOWED_USER_IDS`; остальным он отвечает их id.
+- Telegram не даёт боту отправить файл больше 50 МБ, поэтому по умолчанию формат ограничен 720p (`YTDLP_FORMAT`, `MAX_FILE_MB`).
+- Cookie и заголовки можно передать через `settings.toml`: `BOT_SETTINGS=/path/to/settings.toml`.
+- Для склейки видео и аудио нужен `ffmpeg`. В `Dockerfile` он уже есть; из него бот и собирается в кластере (`tf_serverspace`: `deploy app dw-bot`).
